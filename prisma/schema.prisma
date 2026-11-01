@@ -1,0 +1,160 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum OperatorRole {
+  admin
+  petugaspos
+  keamanan
+}
+
+enum Gender {
+  Putra
+  Putri
+}
+
+enum PackageType {
+  regular
+  jastip
+}
+
+enum PackageKondisi {
+  baik
+  rusak
+}
+
+enum SyncFrequency {
+  hourly
+  daily
+  weekly
+  manual
+}
+
+enum SyncStatus {
+  success
+  failed
+}
+
+model Operator {
+  id             String        @id @default(uuid()) @db.VarChar(64)
+  username       String        @unique @db.VarChar(80)
+  password_hash  String        @db.VarChar(255)
+  name           String        @db.VarChar(150)
+  role           OperatorRole  @default(petugaspos)
+  photo          String?       @db.LongText
+  login_attempts Int           @default(0)
+  locked_until   DateTime?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  @@map("operators")
+}
+
+model Student {
+  niup          String   @id @db.VarChar(64)
+  nama_lengkap  String   @db.VarChar(150)
+  jenis_kelamin String   @db.VarChar(20)
+  daerah        String   @db.VarChar(200)
+  wilayah       String   @db.VarChar(200)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([nama_lengkap])
+  @@map("students")
+}
+
+model Package {
+  id                     String         @id @db.VarChar(64)
+  trackingNumber         String         @db.VarChar(100)
+  courier                String         @default("J&T") @db.VarChar(120)
+  recipientId            String         @db.VarChar(64)
+  recipientName          String         @db.VarChar(150)
+  asrama                 Gender?
+  wilayah                String         @db.VarChar(200)
+  daerah                 String         @db.VarChar(200)
+  room                   String?        @db.VarChar(100)
+  type                   PackageType    @default(regular)
+  status                 String         @default("diterima_petugas") @db.VarChar(50)
+  dateReceived           String         @db.VarChar(32)
+  kondisi                PackageKondisi @default(baik)
+  notes                  String?        @db.Text
+  category               String?        @db.VarChar(120)
+  arrivalTime            String?        @db.VarChar(32)
+  confiscatedReason      String?        @db.VarChar(120)
+  confiscatedBy          String?        @db.VarChar(150)
+  confiscatedNotes       String?        @db.Text
+  confiscatedDate        String?        @db.VarChar(32)
+  confiscatedEvidenceUrl String?        @db.Text
+  returnCourier          String?        @db.VarChar(120)
+  returnTrackingNumber   String?        @db.VarChar(100)
+  returnProofUrl         String?        @db.Text
+  receiverName           String?        @db.VarChar(150)
+  receiverTime           String?        @db.VarChar(32)
+  rackLocation           String         @default("Pos Paket") @db.VarChar(120)
+  manifestId             String?        @db.VarChar(64)
+  circulationType        String?        @db.VarChar(32)
+  isExternalRecipient    Boolean        @default(false)
+  manualRecipientName    String?        @db.VarChar(150)
+  proof_image            String?        @db.LongText
+  proof_image_mimetype   String?        @db.VarChar(100)
+  created_at             DateTime       @default(now())
+  updated_at             DateTime       @updatedAt
+
+  manifest               Manifest?      @relation("PackageToManifest", fields: [manifestId], references: [id], onDelete: SetNull)
+  manifestOwner          Manifest?      @relation("ManifestOwner")
+
+  @@index([trackingNumber])
+  @@index([status])
+  @@index([type])
+  @@index([recipientId])
+  @@index([created_at])
+  @@index([manifestId])
+  @@map("packages")
+}
+
+model Manifest {
+  id           String    @id @default(uuid()) @db.VarChar(64)
+  packageId    String?   @unique @db.VarChar(64)
+  status       String    @default("diterima_petugas") @db.VarChar(50)
+  rackLocation String    @default("Pos Paket") @db.VarChar(120)
+  notes        String?   @db.Text
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  packageRef   Package?  @relation("ManifestOwner", fields: [packageId], references: [id], onDelete: Cascade)
+  packages     Package[] @relation("PackageToManifest")
+
+  @@map("manifests")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid()) @db.VarChar(64)
+  type        String   @db.VarChar(32)
+  title       String   @db.VarChar(200)
+  description String   @db.Text
+  timestamp   String   @db.VarChar(32)
+  operator    String   @db.VarChar(150)
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@map("activity_logs")
+}
+
+model ApiConfig {
+  id             Int           @id @default(1)
+  baseUrl        String        @db.Text
+  token          String        @db.Text
+  syncFrequency  SyncFrequency @default(manual)
+  lastSyncTime   String        @default("") @db.VarChar(64)
+  lastSyncStatus SyncStatus    @default(failed)
+  updatedCount   Int           @default(0)
+  mapping_json   Json
+  updated_at     DateTime      @updatedAt
+
+  @@map("api_config")
+}

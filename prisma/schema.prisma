@@ -46,7 +46,7 @@ model Operator {
   password_hash  String        @db.VarChar(255)
   name           String        @db.VarChar(150)
   role           OperatorRole  @default(petugaspos)
-  photo          String?       @db.LongText
+  photo          String?       @db.Text
   login_attempts Int           @default(0)
   locked_until   DateTime?
   created_at     DateTime      @default(now())
@@ -100,7 +100,7 @@ model Package {
   circulationType        String?        @db.VarChar(32)
   isExternalRecipient    Boolean        @default(false)
   manualRecipientName    String?        @db.VarChar(150)
-  proof_image            String?        @db.LongText
+  proof_image            String?        @db.Text
   proof_image_mimetype   String?        @db.VarChar(100)
   created_at             DateTime       @default(now())
   updated_at             DateTime       @updatedAt

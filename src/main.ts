@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import * as cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 import * as express from 'express';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
@@ -58,10 +58,14 @@ async function bootstrap() {
   ].filter(Boolean) as string[];
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: [
+      'https://posketren.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ],
     credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Accept, Authorization',
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
   });
 
   // Global prefix /api per README
@@ -81,6 +85,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 8080;
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 POSKETREN NJ Backend is running securely on: http://localhost:${port}/api`);
+  console.log(`POSKETREN NJ Backend is running securely on: http://localhost:${port}/api`);
 }
 bootstrap();

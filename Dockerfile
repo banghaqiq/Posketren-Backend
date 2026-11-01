@@ -46,5 +46,5 @@ COPY --chown=node:node --from=builder /app/package*.json ./
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "dist/src/main"]
+CMD ["sh", "-c", "echo 'Starting NestJS backend...' && node dist/src/main"]
 

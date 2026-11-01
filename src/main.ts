@@ -52,13 +52,20 @@ async function bootstrap() {
 
   // CORS setup with explicit origin allowlist
   const allowedOrigins = [
+    'https://posketren.vercel.app',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked origin: ${origin}`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type','Authorization'],

@@ -113,20 +113,43 @@ export class PackagesService {
     return packages;
   }
 
-  async findOne(id: string) {
-    const pkg = await this.prisma.package.findUnique({
-      where: { id },
+  
+async findOne(id: string) {
+  const searchId = id.trim();
+
+  // 1. Cari berdasarkan ID internal database
+  let pkg = await this.prisma.package.findUnique({
+    where: { id: searchId },
+    include: {
+      manifest: true,
+    },
+  });
+
+  // 2. Jika tidak ditemukan, coba cari berdasarkan nomor resi kurir
+  if (!pkg) {
+    pkg = await this.prisma.package.findFirst({
+      where: {
+        trackingNumber: {
+          equals: searchId,
+          mode: 'insensitive',
+        },
+      },
       include: {
         manifest: true,
       },
     });
+  }
 
-    if (!pkg) {
-      throw new NotFoundException(`Paket dengan ID '${id}' tidak ditemukan`);
-    }
+  // 3. Jika tetap tidak ditemukan
+  if (!pkg) {
+    throw new NotFoundException(
+      `Paket dengan ID atau nomor resi '${searchId}' tidak ditemukan`,
+    );
+  }
 
     return pkg;
   }
+
 
   async create(dto: CreatePackageDto, operatorName: string = 'Petugas Pos') {
     const pkgType = dto.type || 'regular';

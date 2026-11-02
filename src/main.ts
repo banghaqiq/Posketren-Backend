@@ -52,15 +52,22 @@ async function bootstrap() {
 
   // CORS setup with explicit origin allowlist
   const allowedOrigins = [
-    'https://posketren.vercel.app',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    process.env.FRONTEND_URL,
-  ].filter(Boolean) as string[];
+  'https://posketren.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
+const isAllowedOrigin = (origin: string) => {
+  return (
+    allowedOrigins.includes(origin) ||
+    /^https:\/\/posketren-[a-z0-9-]+\.vercel\.app$/.test(origin)
+  );
+};
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked origin: ${origin}`));

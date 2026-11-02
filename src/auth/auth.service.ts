@@ -25,6 +25,32 @@ export class AuthService {
       where: { username: cleanUsername },
     });
 
+    // TEMPORARY PASSWORD DIAGNOSTIC
+    const storedHash = operator.password_hash;
+
+    const hashFormatValid =
+      typeof storedHash === 'string' &&
+      /^\$2[aby]\$\d{2}\$/.test(storedHash);
+
+    let diagnosticCompare = false;
+
+    try {
+      diagnosticCompare = await bcrypt.compare(
+        pass,
+        storedHash,
+      );
+    } catch {
+      diagnosticCompare = false;
+    }
+
+    console.log('[AUTH PASSWORD DIAGNOSTIC]', {
+      operatorFound: true,
+      passwordHashPresent: !!storedHash,
+      hashFormatValid,
+      bcryptCompareResult: diagnosticCompare,
+    });
+    // END TEMPORARY DIAGNOSTIC
+
     if (!operator) {
       throw new UnauthorizedException('Username atau kata sandi tidak valid');
     }
@@ -37,7 +63,7 @@ export class AuthService {
         (operator.locked_until.getTime() - now.getTime()) / 60000,
       );
       throw new HttpException(
-        `Akun '${operator.username}' sedang tertahan selama ${waitMinutes} menit karena 5 kali salah kata sandi. Akun lain tetap dapat login seperti biasa.`,
+        `Akun sedang tertahan selama ${waitMinutes} menit karena 5 kali salah kata sandi. Silakan coba lagi nanti.`,
         HttpStatus.FORBIDDEN,
       );
     }
@@ -67,14 +93,14 @@ export class AuthService {
 
       if (newAttempts >= 5) {
         throw new HttpException(
-          `Akun '${operator.username}' tertahan selama 15 menit karena gagal login 5 kali berturut-turut. Akun lain tidak terpengaruh.`,
+          `Login anda tertahan selama 15 menit karena gagal login 5 kali berturut-turut.`,
           HttpStatus.FORBIDDEN,
         );
       }
 
       const sisa = 5 - newAttempts;
       throw new UnauthorizedException(
-        `Kata sandi salah. Percobaan gagal ${newAttempts}/5 untuk akun '${operator.username}' (tersisa ${sisa}x sebelum akun ini tertahan 15 menit).`,
+        'Username atau kata sandi salah',
       );
     }
 

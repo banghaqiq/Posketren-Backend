@@ -52,15 +52,16 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+
     res.clearCookie('access_token', {
       httpOnly: true,
-      sameSite: 'lax',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
     });
-    return {
-      success: true,
-      message: 'Logout berhasil',
-    };
+
+    return { success: true, message: 'Logout berhasil' };
   }
 
   @UseGuards(JwtAuthGuard)

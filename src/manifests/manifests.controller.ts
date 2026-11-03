@@ -1,11 +1,19 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
+
 import { ManifestsService } from './manifests.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
 @Controller('manifests')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'petugaspos', 'keamanan')
 export class ManifestsController {
   constructor(private manifestsService: ManifestsService) {}
 
@@ -15,8 +23,6 @@ export class ManifestsController {
   }
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'petugaspos')
   async create(
     @Body()
     body: {

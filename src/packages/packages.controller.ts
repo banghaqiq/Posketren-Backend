@@ -96,9 +96,10 @@ export class PackagesController {
     const operator = req.user?.name || dto.operator || 'Petugas Pos';
     return this.packagesService.create(dto, operator);
   }
-
+  
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'petugaspos', 'keamanan')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdatePackageDto,

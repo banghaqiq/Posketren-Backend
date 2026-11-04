@@ -194,54 +194,29 @@ async findOne(id: string) {
     const pkgType = dto.type || 'regular';
     const cleanTracking = (dto.trackingNumber || '').trim();
 
-    // 1. Cek apakah nomor resi sudah ada di database (mencegah data paket tertumpuk / ganda)
+    // 1. Cek apakah nomor resi sudah terdaftar
     if (cleanTracking) {
       const existing = await this.prisma.package.findFirst({
-        where: { trackingNumber: cleanTracking },
+        where: {
+          trackingNumber: {
+            equals: cleanTracking,
+            mode: 'insensitive',
+          },
+        },
       });
 
       if (existing) {
-        // Perbarui data paket yang lama dengan data baru yang di-input / di-import
-        const updated = await this.prisma.package.update({
-          where: { id: existing.id },
-          data: {
-            courier: dto.courier || existing.courier,
-            recipientId: dto.recipientId || existing.recipientId,
-            recipientName: dto.recipientName || existing.recipientName,
-            asrama: dto.asrama !== undefined ? dto.asrama : existing.asrama,
-            wilayah: dto.wilayah || existing.wilayah,
-            daerah: dto.daerah || existing.daerah,
-            room: dto.room !== undefined ? dto.room : existing.room,
-            type: pkgType || existing.type,
-            status: dto.status || existing.status,
-            dateReceived: dto.dateReceived || existing.dateReceived,
-            kondisi: dto.kondisi || existing.kondisi,
-            notes: dto.notes !== undefined ? dto.notes : existing.notes,
-            category: dto.category !== undefined ? dto.category : existing.category,
-            arrivalTime: dto.arrivalTime || existing.arrivalTime,
-            rackLocation: dto.rackLocation || existing.rackLocation,
-          },
-        });
-
-        // Record activity log untuk pembaruan paket
-        try {
-          await this.prisma.activityLog.create({
-            data: {
-              type: 'package_update',
-              title: 'Pembaruan Data Paket (Resi Ganda Diperbarui)',
-              description: `Data paket ${existing.id} (${cleanTracking}) untuk ${updated.recipientName} telah diperbarui dengan data terbaru`,
-              timestamp: new Date().toISOString(),
-              operator: operatorName,
-            },
-          });
-        } catch (e) {}
-
-        return updated;
+        throw new BadRequestException(
+          `Nomor resi "${cleanTracking}" sudah terdaftar pada paket ${existing.id}. Hapus paket tersebut terlebih dahulu jika ingin menggunakan resi ini kembali.`,
+        );
       }
     }
 
+
     // 2. Jika paket baru (belum ada resi yang sama), buat data baru
-    const pkgId = dto.id && dto.id.trim() !== '' ? dto.id.trim() : await this.generatePackageId(pkgType);
+    const pkgId = dto.id && dto.id.trim() !== ''
+      ? dto.id.trim()
+      : await this.generatePackageId(pkgType);
 
     const created = await this.prisma.package.create({
       data: {

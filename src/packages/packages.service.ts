@@ -44,8 +44,24 @@ export class PackagesService {
     page?: number;
     limit?: number;
     isPublic?: boolean;
+    securityWilayah?: string | null;
+    wilayah?: string;
+    startDate?: string;
+    endDate?: string;
   }) {
-    const { search, status, type, courier, page, limit, isPublic } = query || {};
+    const {
+      search,
+      status,
+      type,
+      courier,
+      page,
+      limit,
+      isPublic,
+      securityWilayah,
+      wilayah,
+      startDate,
+      endDate,
+    } = query || {};
 
     const where: any = {};
 
@@ -59,6 +75,29 @@ export class PackagesService {
 
     if (courier && courier !== 'all') {
       where.courier = courier;
+    }
+
+    // Pembatasan wilayah khusus operator keamanan
+    if (securityWilayah !== null && securityWilayah !== undefined) {
+      where.wilayah = securityWilayah;
+    } else if (wilayah && wilayah !== 'all') {
+      where.wilayah = wilayah;
+    }
+
+    // Filter tanggal berdasarkan waktu paket dibuat (created_at)
+    if (startDate || endDate) {
+      where.created_at = {};
+
+      if (startDate) {
+        where.created_at.gte = new Date(`${startDate}T00:00:00+07:00`);
+      }
+
+      if (endDate) {
+        const nextDay = new Date(`${endDate}T00:00:00+07:00`);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        where.created_at.lt = nextDay;
+      }
     }
 
     if (search && search.trim() !== '') {

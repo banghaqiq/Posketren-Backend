@@ -22,4 +22,8 @@ export class UpdateOperatorDto {
   @IsOptional()
   @IsString()
   photo?: string;
+
+  @IsOptional()
+  @IsString()
+  wilayah?: string;
 }

@@ -16,11 +16,12 @@ export class OperatorsService {
         username: true,
         name: true,
         role: true,
+        wilayah: true,
         photo: true,
         login_attempts: true,
         locked_until: true,
         created_at: true,
-      },
+        },
       orderBy: { created_at: 'desc' },
     });
   }
@@ -33,6 +34,7 @@ export class OperatorsService {
         username: true,
         name: true,
         role: true,
+        wilayah: true,
         photo: true,
         login_attempts: true,
         locked_until: true,
@@ -66,6 +68,7 @@ export class OperatorsService {
         password_hash,
         name: dto.name.trim(),
         role: dto.role,
+        wilayah: dto.wilayah?.trim() || null,
         photo: photoData,
         login_attempts: 0,
         locked_until: null,
@@ -75,6 +78,7 @@ export class OperatorsService {
         username: true,
         name: true,
         role: true,
+        wilayah: true,
         photo: true,
         created_at: true,
       },
@@ -105,6 +109,10 @@ export class OperatorsService {
     if (dto.name) data.name = dto.name.trim();
     if (dto.role) data.role = dto.role;
 
+    if (dto.wilayah !== undefined) {
+      data.wilayah = dto.wilayah.trim() || null;
+    }
+
     if (dto.photo !== undefined) {
       if (dto.photo && dto.photo.trim() !== '') {
         validateBase64Image(dto.photo, 1.5 * 1024 * 1024, 'Foto Profil');
@@ -126,6 +134,7 @@ export class OperatorsService {
         username: true,
         name: true,
         role: true,
+        wilayah: true,
         photo: true,
         created_at: true,
       },

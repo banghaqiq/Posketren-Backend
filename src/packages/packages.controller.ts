@@ -22,13 +22,15 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { JwtService } from '@nestjs/jwt';
 import { Response, Request } from 'express';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('packages')
 export class PackagesController {
   constructor(
     private packagesService: PackagesService,
     private jwtService: JwtService,
-  ) {}
+    private prisma: PrismaService,
+  ){}
 
   @Get()
   async findAll(
@@ -39,9 +41,13 @@ export class PackagesController {
     @Query('courier') courier?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('wilayah') wilayah?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     // Determine if requester is an authenticated operator or a public tracking guest
     let isAuthenticated = false;
+    let securityWilayah: string | null = null; 
     const authHeader = req.headers.authorization;
     const token =
       req.cookies?.['access_token'] ||
@@ -49,10 +55,28 @@ export class PackagesController {
 
     if (token) {
       try {
-        await this.jwtService.verifyAsync(token);
-        isAuthenticated = true;
+        const payload = await this.jwtService.verifyAsync(token);
+        const userId = payload.id || payload.sub;
+
+        const operator = await this.prisma.operator.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            role: true,
+            wilayah: true,
+          },
+        });
+
+        if (operator) {
+          isAuthenticated = true;
+
+          if (operator.role === 'keamanan') {
+            securityWilayah = operator.wilayah ?? '';
+          }
+        }
       } catch {
         isAuthenticated = false;
+        securityWilayah = null;
       }
     }
 
@@ -72,6 +96,10 @@ export class PackagesController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       isPublic: !isAuthenticated,
+      securityWilayah,
+      wilayah,
+      startDate,
+      endDate,
     });
   }
 

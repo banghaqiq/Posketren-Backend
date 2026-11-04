@@ -22,4 +22,8 @@ export class CreateOperatorDto {
   @IsOptional()
   @IsString()
   photo?: string;
+
+  @IsOptional()
+  @IsString()
+  wilayah?: string;
 }

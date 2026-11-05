@@ -1,8 +1,12 @@
 import { IsString, IsEnum, IsOptional } from 'class-validator';
+import { Matches } from 'class-validator';
 
 export class UpdateOperatorDto {
   @IsOptional()
   @IsString()
+  @Matches(/^\S+$/, {
+    message: 'Username tidak boleh mengandung spasi',
+  })
   username?: string;
 
   @IsOptional()

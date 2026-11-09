@@ -45,7 +45,6 @@ export class AuthController {
       success: true,
       message: 'Login berhasil',
       user: result.user,
-      token: result.token,
     };
   }
 

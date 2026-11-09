@@ -21,38 +21,14 @@ export class AuthService {
       throw new UnauthorizedException('Username dan kata sandi wajib diisi');
     }
 
-    const operator = await this.prisma.operator.findUnique({
+   const operator = await this.prisma.operator.findUnique({
       where: { username: cleanUsername },
     });
 
-    // TEMPORARY PASSWORD DIAGNOSTIC
-    const storedHash = operator.password_hash;
-
-    const hashFormatValid =
-      typeof storedHash === 'string' &&
-      /^\$2[aby]\$\d{2}\$/.test(storedHash);
-
-    let diagnosticCompare = false;
-
-    try {
-      diagnosticCompare = await bcrypt.compare(
-        pass,
-        storedHash,
-      );
-    } catch {
-      diagnosticCompare = false;
-    }
-
-    console.log('[AUTH PASSWORD DIAGNOSTIC]', {
-      operatorFound: true,
-      passwordHashPresent: !!storedHash,
-      hashFormatValid,
-      bcryptCompareResult: diagnosticCompare,
-    });
-    // END TEMPORARY DIAGNOSTIC
-
     if (!operator) {
-      throw new UnauthorizedException('Username atau kata sandi tidak valid');
+      throw new UnauthorizedException(
+        'Username atau kata sandi tidak valid',
+      );
     }
 
     const now = new Date();

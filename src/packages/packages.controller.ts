@@ -46,6 +46,7 @@ export class PackagesController {
       return pkg;
     }
 
+  
   @Get()
   async findAll(
     @Req() req: Request,
@@ -59,18 +60,28 @@ export class PackagesController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    // Determine if requester is an authenticated operator or a public tracking guest
     let isAuthenticated = false;
-    let securityWilayah: string | null = null; 
+    let securityWilayah: string | null = null;
+
     const authHeader = req.headers.authorization;
     const token =
       req.cookies?.['access_token'] ||
-      (authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined);
+      (authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : undefined);
 
     if (token) {
       try {
         const payload = await this.jwtService.verifyAsync(token);
+
         const userId = payload.id || payload.sub;
+        const sessionId = payload.sessionId;
+
+        if (!userId || !sessionId) {
+          throw new UnauthorizedException(
+            'Identitas sesi tidak valid',
+          );
+        }
 
         const operator = await this.prisma.operator.findUnique({
           where: { id: userId },
@@ -79,34 +90,55 @@ export class PackagesController {
             role: true,
             wilayah: true,
             locked_until: true,
+            active_session_id: true,
+            session_expires_at: true,
           },
         });
 
-        if (operator) {
-          if (operator.locked_until && operator.locked_until > new Date()) {
-            throw new UnauthorizedException(
-              'Akun sedang terkunci karena keamanan',
-            );
-          }
+        if (!operator) {
+          throw new UnauthorizedException(
+            'Akun pengguna tidak ditemukan atau telah dinonaktifkan',
+          );
+        }
 
-          isAuthenticated = true;
+        // Validasi sesi perangkat yang sedang aktif.
+        if (
+          operator.active_session_id !== sessionId ||
+          !operator.session_expires_at ||
+          operator.session_expires_at <= new Date()
+        ) {
+          throw new UnauthorizedException(
+            'Sesi ini sudah berakhir atau telah digantikan. Silakan login kembali.',
+          );
+        }
 
-          if (operator.role === 'keamanan') {
-            securityWilayah = operator.wilayah ?? '';
-          }
+        // Validasi status penguncian akun.
+        if (
+          operator.locked_until &&
+          operator.locked_until > new Date()
+        ) {
+          throw new UnauthorizedException(
+            'Akun sedang terkunci karena keamanan',
+          );
+        }
+
+        isAuthenticated = true;
+
+        if (operator.role === 'keamanan') {
+          securityWilayah = operator.wilayah ?? '';
         }
       } catch (error) {
         if (error instanceof UnauthorizedException) {
           throw error;
         }
 
-        isAuthenticated = false;
-        securityWilayah = null;
+        throw new UnauthorizedException(
+          'Token tidak valid atau kedaluwarsa',
+        );
       }
     }
 
-    // Unauthenticated public tracking MUST provide at least 3 characters of search term
-    // to strictly prevent unauthorized bulk package scraping
+    // Pencarian publik wajib minimal 3 karakter.
     if (!isAuthenticated) {
       if (!search || search.trim().length < 3) {
         return [];
@@ -127,6 +159,7 @@ export class PackagesController {
       endDate,
     });
   }
+
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)

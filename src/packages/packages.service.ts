@@ -73,56 +73,91 @@ export class PackagesService {
 
     const where: any = {};
 
-    if (status && status !== 'all') {
-      where.status = status;
-    }
-
-    if (type && type !== 'all') {
-      where.type = type;
-    }
-
-    if (courier && courier !== 'all') {
-      where.courier = courier;
-    }
-
-    // Pembatasan wilayah khusus operator keamanan
-    if (securityWilayah !== null && securityWilayah !== undefined) {
-      where.wilayah = securityWilayah;
-    } else if (wilayah && wilayah !== 'all') {
-      where.wilayah = wilayah;
-    }
-
-    // Filter tanggal berdasarkan waktu paket dibuat (created_at)
-    if (startDate || endDate) {
-      where.created_at = {};
-
-      if (startDate) {
-        where.created_at.gte = new Date(`${startDate}T00:00:00+07:00`);
+   // Filter status, tipe, kurir, wilayah, dan tanggal
+    // hanya berlaku untuk operator yang sudah login.
+    if (!isPublic) {
+      if (status && status !== 'all') {
+        where.status = status;
       }
 
-      if (endDate) {
-        const nextDay = new Date(`${endDate}T00:00:00+07:00`);
-        nextDay.setDate(nextDay.getDate() + 1);
+      if (type && type !== 'all') {
+        where.type = type;
+      }
 
-        where.created_at.lt = nextDay;
+      if (courier && courier !== 'all') {
+        where.courier = courier;
+      }
+
+      if (securityWilayah !== null && securityWilayah !== undefined) {
+        where.wilayah = securityWilayah;
+      } else if (wilayah && wilayah !== 'all') {
+        where.wilayah = wilayah;
+      }
+
+      if (startDate || endDate) {
+        where.created_at = {};
+
+        if (startDate) {
+          where.created_at.gte = new Date(
+            `${startDate}T00:00:00+07:00`,
+          );
+        }
+
+        if (endDate) {
+          const nextDay = new Date(
+            `${endDate}T00:00:00+07:00`,
+          );
+          nextDay.setDate(nextDay.getDate() + 1);
+          where.created_at.lt = nextDay;
+        }
       }
     }
 
     if (search && search.trim() !== '') {
       const s = search.trim();
-      where.OR = [
-        { id: { contains: s } },
-        { trackingNumber: { contains: s } },
-        { recipientName: { contains: s } },
-        { recipientId: { contains: s } },
-        { wilayah: { contains: s } },
-        { daerah: { contains: s } },
+
+      if (isPublic) {
+        where.OR = [
+          {
+            id: {
+              equals: s,
+              mode: 'insensitive',
+            },
+          },
+          {
+            trackingNumber: {
+              equals: s,
+              mode: 'insensitive',
+            },
+          },
+          {
+            recipientName: {
+              contains: s,
+              mode: 'insensitive',
+            },
+          },
+        ];
+      } else {
+       where.OR = [
+        { id: { contains: s, mode: 'insensitive' } },
+        { trackingNumber: { contains: s, mode: 'insensitive' } },
+        { recipientName: { contains: s, mode: 'insensitive' } },
+        { recipientId: { contains: s, mode: 'insensitive' } },
+        { wilayah: { contains: s, mode: 'insensitive' } },
+        { daerah: { contains: s, mode: 'insensitive' } },
       ];
+      }
     }
 
     // Enforce safe pagination bounds to prevent DoS via excessive memory allocation
-    const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
-    const safePage = Math.max(Number(page) || 1, 1);
+   const safeLimit = isPublic
+      ? 1
+      : Math.min(Math.max(Number(limit) || 200, 1), 500);
+
+    const safePage = isPublic
+      ? 1
+      : Math.max(Number(page) || 1, 1);
+
     const skip = (safePage - 1) * safeLimit;
 
     const packages = await this.prisma.package.findMany({
@@ -130,62 +165,63 @@ export class PackagesService {
       orderBy: { created_at: 'desc' },
       take: safeLimit,
       skip,
-      select: {
-        id: true,
-        trackingNumber: true,
-        courier: true,
-        recipientId: true,
-        recipientName: true,
-        asrama: true,
-        wilayah: true,
-        daerah: true,
-        room: true,
-        type: true,
-        status: true,
-        dateReceived: true,
-        kondisi: true,
-        notes: true,
-        category: true,
-        arrivalTime: true,
-        confiscatedReason: true,
-        confiscatedBy: true,
-        confiscatedNotes: true,
-        confiscatedDate: true,
-        confiscatedEvidenceUrl: true,
-        returnCourier: true,
-        returnTrackingNumber: true,
-        returnProofUrl: true,
-        receiverName: true,
-        receiverTime: true,
-        rackLocation: true,
-        manifestId: true,
-        circulationType: true,
-        isExternalRecipient: true,
-        manualRecipientName: true,
-        created_at: true,
-        updated_at: true,
-        ...(isPublic ? {} : { manifest: true }),
-      },
+      select: isPublic
+        ? {
+            id: true,
+            trackingNumber: true,
+            courier: true,
+            type: true,
+            status: true,
+            dateReceived: true,
+            arrivalTime: true,
+          }
+        : {
+            id: true,
+            trackingNumber: true,
+            courier: true,
+            recipientId: true,
+            recipientName: true,
+            asrama: true,
+            wilayah: true,
+            daerah: true,
+            room: true,
+            type: true,
+            status: true,
+            dateReceived: true,
+            kondisi: true,
+            notes: true,
+            category: true,
+            arrivalTime: true,
+            confiscatedReason: true,
+            confiscatedBy: true,
+            confiscatedNotes: true,
+            confiscatedDate: true,
+            confiscatedEvidenceUrl: true,
+            returnCourier: true,
+            returnTrackingNumber: true,
+            returnProofUrl: true,
+            receiverName: true,
+            receiverTime: true,
+            rackLocation: true,
+            manifestId: true,
+            circulationType: true,
+            isExternalRecipient: true,
+            manualRecipientName: true,
+            created_at: true,
+            updated_at: true,
+            manifest: true,
+          },
     });
 
     if (isPublic) {
-      // Strip internal notes, evidence URLs, and mask sensitive recipient IDs for public tracking
       return packages.map((pkg) => ({
         id: pkg.id,
         trackingNumber: pkg.trackingNumber,
         courier: pkg.courier,
-        recipientName: pkg.recipientName,
-        recipientId: pkg.recipientId ? `${pkg.recipientId.slice(0, 3)}***` : '',
-        asrama: pkg.asrama,
-        wilayah: pkg.wilayah,
-        daerah: pkg.daerah,
         type: pkg.type,
         status: pkg.status,
         dateReceived: pkg.dateReceived,
-        kondisi: pkg.kondisi,
-        receiverName: pkg.receiverName,
-        receiverTime: pkg.receiverTime,
-        created_at: pkg.created_at,
+        arrivalTime: pkg.arrivalTime,
       }));
     }
 

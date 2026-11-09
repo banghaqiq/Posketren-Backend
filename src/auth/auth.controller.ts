@@ -32,7 +32,6 @@ export class AuthController {
 
     const isProd = process.env.NODE_ENV === 'production';
 
-    // Set httpOnly cookie for 8 hours (28,800,000 ms)
     res.cookie('access_token', result.token, {
       httpOnly: true,
       secure: isProd,
@@ -50,7 +49,14 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = req.cookies?.['access_token'];
+
+    await this.authService.releaseSession(token);
+
     const isProd = process.env.NODE_ENV === 'production';
 
     res.clearCookie('access_token', {
@@ -68,6 +74,7 @@ export class AuthController {
   async me(@Req() req: any) {
     const userId = req.user?.id || req.user?.sub;
     const profile = await this.authService.getProfile(userId);
+
     return {
       success: true,
       user: profile,

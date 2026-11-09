@@ -9,6 +9,14 @@ import { validateBase64Image } from '../common/security.util';
 export class PackagesService {
   constructor(private prisma: PrismaService) {}
 
+  private assertPackageAccess(pkg: any, actor: any) {
+    if (actor?.role === 'keamanan') {
+      if (!actor.wilayah || pkg.wilayah !== actor.wilayah) {
+        throw new NotFoundException('Paket tidak ditemukan');
+      }
+    }
+  }
+
   private async generatePackageId(type: 'regular' | 'jastip' = 'regular'): Promise<string> {
     const now = new Date();
     const year = now.getFullYear();
@@ -122,8 +130,41 @@ export class PackagesService {
       orderBy: { created_at: 'desc' },
       take: safeLimit,
       skip,
-      include: {
-        manifest: true,
+      select: {
+        id: true,
+        trackingNumber: true,
+        courier: true,
+        recipientId: true,
+        recipientName: true,
+        asrama: true,
+        wilayah: true,
+        daerah: true,
+        room: true,
+        type: true,
+        status: true,
+        dateReceived: true,
+        kondisi: true,
+        notes: true,
+        category: true,
+        arrivalTime: true,
+        confiscatedReason: true,
+        confiscatedBy: true,
+        confiscatedNotes: true,
+        confiscatedDate: true,
+        confiscatedEvidenceUrl: true,
+        returnCourier: true,
+        returnTrackingNumber: true,
+        returnProofUrl: true,
+        receiverName: true,
+        receiverTime: true,
+        rackLocation: true,
+        manifestId: true,
+        circulationType: true,
+        isExternalRecipient: true,
+        manualRecipientName: true,
+        created_at: true,
+        updated_at: true,
+        ...(isPublic ? {} : { manifest: true }),
       },
     });
 
@@ -145,7 +186,6 @@ export class PackagesService {
         receiverName: pkg.receiverName,
         receiverTime: pkg.receiverTime,
         created_at: pkg.created_at,
-        manifest: pkg.manifest,
       }));
     }
 
@@ -153,38 +193,68 @@ export class PackagesService {
   }
 
   
-async findOne(id: string) {
-  const searchId = id.trim();
+  async findOne(id: string) {
+    const searchId = id.trim();
 
-  // 1. Cari berdasarkan ID internal database
-  let pkg = await this.prisma.package.findUnique({
-    where: { id: searchId },
-    include: {
+    const selectPackage = {
+      id: true,
+      trackingNumber: true,
+      courier: true,
+      recipientId: true,
+      recipientName: true,
+      asrama: true,
+      wilayah: true,
+      daerah: true,
+      room: true,
+      type: true,
+      status: true,
+      dateReceived: true,
+      kondisi: true,
+      notes: true,
+      category: true,
+      arrivalTime: true,
+      confiscatedReason: true,
+      confiscatedBy: true,
+      confiscatedNotes: true,
+      confiscatedDate: true,
+      confiscatedEvidenceUrl: true,
+      returnCourier: true,
+      returnTrackingNumber: true,
+      returnProofUrl: true,
+      receiverName: true,
+      receiverTime: true,
+      rackLocation: true,
+      manifestId: true,
+      circulationType: true,
+      isExternalRecipient: true,
+      manualRecipientName: true,
+      created_at: true,
+      updated_at: true,
       manifest: true,
-    },
-  });
+    };
 
-  // 2. Jika tidak ditemukan, coba cari berdasarkan nomor resi kurir
-  if (!pkg) {
-    pkg = await this.prisma.package.findFirst({
-      where: {
-        trackingNumber: {
-          equals: searchId,
-          mode: 'insensitive',
-        },
-      },
-      include: {
-        manifest: true,
-      },
+    let pkg = await this.prisma.package.findUnique({
+      where: { id: searchId },
+      select: selectPackage,
     });
-  }
 
-  // 3. Jika tetap tidak ditemukan
-  if (!pkg) {
-    throw new NotFoundException(
-      `Paket dengan ID atau nomor resi '${searchId}' tidak ditemukan`,
-    );
-  }
+    if (!pkg) {
+      pkg = await this.prisma.package.findFirst({
+        where: {
+          trackingNumber: {
+            equals: searchId,
+            mode: 'insensitive',
+          },
+        },
+        select: selectPackage,
+      });
+    }
+
+    if (!pkg) {
+      throw new NotFoundException(
+        `Paket dengan ID atau nomor resi '${searchId}' tidak ditemukan`,
+      );
+    }
 
     return pkg;
   }
@@ -281,8 +351,10 @@ async findOne(id: string) {
     return results;
   }
 
-  async update(id: string, dto: UpdatePackageDto, operatorName: string = 'Petugas Pos') {
+  async update(id: string, dto: UpdatePackageDto, operatorName: string = 'Petugas Pos', actor: any,) {
     const existing = await this.findOne(id);
+
+    this.assertPackageAccess(existing, actor);
 
     // Validasi ketat kepatuhan SOP Pesantren: Wajib lampirkan foto bukti serah terima untuk Keluarga Pengasuh
     const recipientLower = (existing.recipientName || '').toLowerCase();
@@ -300,12 +372,20 @@ async findOne(id: string) {
 
     if (
       isPengasuh &&
-      (dto.status === 'telah_diantarkan' || dto.status === 'telah_diterima') &&
-      !existing.proof_image
+      (dto.status === 'telah_diantarkan' || dto.status === 'telah_diterima')
     ) {
-      throw new BadRequestException(
-        'Wajib melampirkan foto bukti fisik serah terima sebelum menyelesaikan paket untuk Keluarga Pengasuh (Dalem Kasepuhan).'
-      );
+      const proofExists = await this.prisma.package.findUnique({
+        where: { id: existing.id },
+        select: {
+          proof_image: true,
+        },
+      });
+
+      if (!proofExists?.proof_image) {
+        throw new BadRequestException(
+          'Wajib melampirkan foto bukti fisik serah terima sebelum menyelesaikan paket untuk Keluarga Pengasuh (Dalem Kasepuhan).',
+        );
+      }
     }
 
     const updated = await this.prisma.package.update({
@@ -384,9 +464,16 @@ async findOne(id: string) {
     return { success: true, message: `Paket ${id} berhasil dihapus` };
   }
 
-  async saveProof(id: string, imageData: string, mimeType: string = 'image/webp') {
-    await this.findOne(id);
-    const validated = validateBase64Image(imageData, 2 * 1024 * 1024, 'Foto Bukti');
+  async saveProof(id: string, imageData: string, mimeType: string = 'image/webp', actor: any,) {
+  const existing = await this.findOne(id);
+
+  this.assertPackageAccess(existing, actor);
+
+  const validated = validateBase64Image(
+    imageData,
+    2 * 1024 * 1024,
+    'Foto Bukti',
+  );
 
     return this.prisma.package.update({
       where: { id },
@@ -397,14 +484,26 @@ async findOne(id: string) {
     });
   }
 
-  async getProof(id: string) {
+  async getProof(id: string, actor: any) {
     const pkg = await this.findOne(id);
-    if (!pkg.proof_image) {
+
+    this.assertPackageAccess(pkg, actor);
+
+    const proof = await this.prisma.package.findUnique({
+      where: { id: pkg.id },
+      select: {
+        proof_image: true,
+        proof_image_mimetype: true,
+      },
+    });
+
+    if (!proof?.proof_image) {
       throw new NotFoundException('Foto bukti tidak ditemukan');
     }
+
     return {
-      imageData: pkg.proof_image,
-      mimeType: pkg.proof_image_mimetype || 'image/jpeg',
+      imageData: proof.proof_image,
+      mimeType: proof.proof_image_mimetype || 'image/jpeg',
     };
   }
 

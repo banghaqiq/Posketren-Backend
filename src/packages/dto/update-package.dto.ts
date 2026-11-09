@@ -1,4 +1,9 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsIn,
+} from 'class-validator';
 
 export const VALID_PACKAGE_STATUSES = [
   'diterima_petugas',
@@ -14,13 +19,13 @@ export const VALID_PACKAGE_STATUSES = [
 
 export class UpdatePackageDto {
   @IsNotEmpty({ message: 'Status wajib diisi' })
-  @IsEnum(VALID_PACKAGE_STATUSES, {
+  @IsIn(VALID_PACKAGE_STATUSES, {
     message: `Status tidak valid. Harus salah satu dari: ${VALID_PACKAGE_STATUSES.join(', ')}`,
   })
   status: string;
 
   @IsOptional()
-  @IsEnum(['baik', 'rusak'])
+  @IsIn(['baik', 'rusak'])
   kondisi?: 'baik' | 'rusak';
 
   @IsOptional()

@@ -12,6 +12,8 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PackagesService } from './packages.service';
 import { CreatePackageDto } from './dto/create-package.dto';
@@ -26,11 +28,23 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('packages')
 export class PackagesController {
-  constructor(
-    private packagesService: PackagesService,
-    private jwtService: JwtService,
-    private prisma: PrismaService,
-  ){}
+    constructor(
+      private packagesService: PackagesService,
+      private jwtService: JwtService,
+      private prisma: PrismaService,
+    ) {}
+
+    private async assertPackageAccess(id: string, actor: any) {
+      const pkg = await this.packagesService.findOne(id);
+
+      if (actor.role === 'keamanan') {
+        if (!actor.wilayah || pkg.wilayah !== actor.wilayah) {
+          throw new NotFoundException('Paket tidak ditemukan');
+        }
+      }
+
+      return pkg;
+    }
 
   @Get()
   async findAll(
@@ -64,17 +78,28 @@ export class PackagesController {
             id: true,
             role: true,
             wilayah: true,
+            locked_until: true,
           },
         });
 
         if (operator) {
+          if (operator.locked_until && operator.locked_until > new Date()) {
+            throw new UnauthorizedException(
+              'Akun sedang terkunci karena keamanan',
+            );
+          }
+
           isAuthenticated = true;
 
           if (operator.role === 'keamanan') {
             securityWilayah = operator.wilayah ?? '';
           }
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof UnauthorizedException) {
+          throw error;
+        }
+
         isAuthenticated = false;
         securityWilayah = null;
       }
@@ -104,8 +129,13 @@ export class PackagesController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.packagesService.findOne(id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'petugaspos', 'keamanan')
+  async findOne(
+    @Param('id') id: string,
+    @Req() req: any,
+  ) {
+    return this.assertPackageAccess(id, req.user);
   }
 
   @Post('bulk')
@@ -133,8 +163,11 @@ export class PackagesController {
     @Body() dto: UpdatePackageDto,
     @Req() req: any,
   ) {
+    await this.assertPackageAccess(id, req.user);
+
     const operator = req.user?.name || dto.operator || 'Petugas Pos';
-    return this.packagesService.update(id, dto, operator);
+
+    return this.packagesService.update(id, dto, operator, req.user);
   }
 
   @Delete(':id')
@@ -146,20 +179,32 @@ export class PackagesController {
   }
 
   @Post(':id/proof')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'petugaspos', 'keamanan')
   @HttpCode(HttpStatus.OK)
   async uploadProof(
     @Param('id') id: string,
     @Body() body: { image: string; mimeType?: string },
+    @Req() req: any,
   ) {
+    await this.assertPackageAccess(id, req.user);
+
     const mime = body.mimeType || 'image/webp';
-    return this.packagesService.saveProof(id, body.image, mime);
+
+    return this.packagesService.saveProof(id, body.image, mime, req.user);
   }
 
   @Get(':id/proof')
-  @UseGuards(JwtAuthGuard)
-  async getProof(@Param('id') id: string, @Res() res: Response) {
-    const proof = await this.packagesService.getProof(id);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'petugaspos', 'keamanan')
+  async getProof(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    await this.assertPackageAccess(id, req.user);
+
+    const proof = await this.packagesService.getProof(id, req.user);
 
     // Security header against MIME sniffing
     res.setHeader('X-Content-Type-Options', 'nosniff');

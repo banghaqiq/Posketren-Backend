@@ -9,6 +9,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { ManifestsModule } from './manifests/manifests.module';
 import { ApiConfigModule } from './config/api-config.module';
 import { PrinterModule } from './printer/printer.module';
+import { WilayahModule } from './wilayah/wilayah.module';
 import { RateLimitMiddleware } from './common/rate-limit.middleware';
 import { AppController } from './app.controller';
 
@@ -25,6 +26,7 @@ import { AppController } from './app.controller';
     ManifestsModule,
     ApiConfigModule,
     PrinterModule,
+    WilayahModule,
   ],
 })
 export class AppModule implements NestModule {

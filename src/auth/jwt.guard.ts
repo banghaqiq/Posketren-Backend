@@ -7,6 +7,67 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 
+export async function verifyTokenAndSession(
+  token: string,
+  jwtService: JwtService,
+  prisma: PrismaService,
+) {
+  const payload = await jwtService.verifyAsync(token);
+  const userId = payload.id || payload.sub;
+  const sessionId = payload.sessionId;
+
+  if (!userId || !sessionId) {
+    throw new UnauthorizedException('Identitas sesi tidak valid');
+  }
+
+  const operator = await prisma.operator.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      role: true,
+      wilayah: true,
+      photo: true,
+      locked_until: true,
+      active_session_id: true,
+      session_expires_at: true,
+    },
+  });
+
+  if (!operator) {
+    throw new UnauthorizedException(
+      'Akun pengguna tidak ditemukan atau telah dinonaktifkan',
+    );
+  }
+
+  // Pastikan token berasal dari sesi perangkat yang masih aktif.
+  if (
+    operator.active_session_id !== sessionId ||
+    !operator.session_expires_at ||
+    operator.session_expires_at <= new Date()
+  ) {
+    throw new UnauthorizedException(
+      'Sesi ini sudah berakhir atau telah digantikan. Silakan login kembali.',
+    );
+  }
+
+  if (operator.locked_until && operator.locked_until > new Date()) {
+    throw new UnauthorizedException(
+      'Akun sedang terkunci karena keamanan',
+    );
+  }
+
+  return {
+    id: operator.id,
+    username: operator.username,
+    name: operator.name,
+    role: operator.role,
+    wilayah: operator.wilayah,
+    photo: operator.photo,
+  };
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -26,60 +87,11 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(token);
-      const userId = payload.id || payload.sub;
-      const sessionId = payload.sessionId;
-
-      if (!userId || !sessionId) {
-        throw new UnauthorizedException('Identitas sesi tidak valid');
-      }
-
-      const operator = await this.prisma.operator.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          username: true,
-          name: true,
-          role: true,
-          wilayah: true,
-          photo: true,
-          locked_until: true,
-          active_session_id: true,
-          session_expires_at: true,
-        },
-      });
-
-      if (!operator) {
-        throw new UnauthorizedException(
-          'Akun pengguna tidak ditemukan atau telah dinonaktifkan',
-        );
-      }
-
-      // Pastikan token berasal dari sesi perangkat yang masih aktif.
-      if (
-        operator.active_session_id !== sessionId ||
-        !operator.session_expires_at ||
-        operator.session_expires_at <= new Date()
-      ) {
-        throw new UnauthorizedException(
-          'Sesi ini sudah berakhir atau telah digantikan. Silakan login kembali.',
-        );
-      }
-
-      if (operator.locked_until && operator.locked_until > new Date()) {
-        throw new UnauthorizedException(
-          'Akun sedang terkunci karena keamanan',
-        );
-      }
-
-      request['user'] = {
-        id: operator.id,
-        username: operator.username,
-        name: operator.name,
-        role: operator.role,
-        wilayah: operator.wilayah,
-        photo: operator.photo,
-      };
+      request['user'] = await verifyTokenAndSession(
+        token,
+        this.jwtService,
+        this.prisma,
+      );
 
       return true;
     } catch (err: any) {

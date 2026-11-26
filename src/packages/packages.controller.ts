@@ -19,7 +19,7 @@ import { PackagesService } from './packages.service';
 import { CreatePackageDto } from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
 import { BulkCreatePackageDto } from './dto/bulk-create-package.dto';
-import { JwtAuthGuard } from '../auth/jwt.guard';
+import { JwtAuthGuard, verifyTokenAndSession } from '../auth/jwt.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { JwtService } from '@nestjs/jwt';
@@ -72,55 +72,11 @@ export class PackagesController {
 
     if (token) {
       try {
-        const payload = await this.jwtService.verifyAsync(token);
-
-        const userId = payload.id || payload.sub;
-        const sessionId = payload.sessionId;
-
-        if (!userId || !sessionId) {
-          throw new UnauthorizedException(
-            'Identitas sesi tidak valid',
-          );
-        }
-
-        const operator = await this.prisma.operator.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            role: true,
-            wilayah: true,
-            locked_until: true,
-            active_session_id: true,
-            session_expires_at: true,
-          },
-        });
-
-        if (!operator) {
-          throw new UnauthorizedException(
-            'Akun pengguna tidak ditemukan atau telah dinonaktifkan',
-          );
-        }
-
-        // Validasi sesi perangkat yang sedang aktif.
-        if (
-          operator.active_session_id !== sessionId ||
-          !operator.session_expires_at ||
-          operator.session_expires_at <= new Date()
-        ) {
-          throw new UnauthorizedException(
-            'Sesi ini sudah berakhir atau telah digantikan. Silakan login kembali.',
-          );
-        }
-
-        // Validasi status penguncian akun.
-        if (
-          operator.locked_until &&
-          operator.locked_until > new Date()
-        ) {
-          throw new UnauthorizedException(
-            'Akun sedang terkunci karena keamanan',
-          );
-        }
+        const operator = await verifyTokenAndSession(
+          token,
+          this.jwtService,
+          this.prisma,
+        );
 
         isAuthenticated = true;
 

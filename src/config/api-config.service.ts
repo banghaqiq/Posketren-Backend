@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ApiConfigService {
+  private readonly logger = new Logger(ApiConfigService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async getConfig() {
@@ -74,7 +76,9 @@ export class ApiConfigService {
           operator: 'Cron Scheduler',
         },
       });
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to create sync activity log: ${e?.message}`);
+    }
 
     return {
       status: 'ok',

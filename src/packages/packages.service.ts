@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePackageDto } from './dto/create-package.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
@@ -7,6 +7,8 @@ import { validateBase64Image } from '../common/security.util';
 
 @Injectable()
 export class PackagesService {
+  private readonly logger = new Logger(PackagesService.name);
+
   constructor(private prisma: PrismaService) {}
 
   private assertPackageAccess(pkg: any, actor: any) {
@@ -359,7 +361,9 @@ export class PackagesService {
           operator: operatorName,
         },
       });
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to record package_in activity log: ${e?.message}`);
+    }
 
     return created;
   }
@@ -382,7 +386,9 @@ export class PackagesService {
           operator: operatorName,
         },
       });
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to record bulkCreate activity log: ${e?.message}`);
+    }
 
     return results;
   }
@@ -473,7 +479,9 @@ export class PackagesService {
             operator: operatorName,
           },
         });
-      } catch (e) {}
+      } catch (e: any) {
+        this.logger.warn(`Failed to record status update activity log: ${e?.message}`);
+      }
     }
 
     return updated;
@@ -495,7 +503,9 @@ export class PackagesService {
           operator: operatorName,
         },
       });
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to record package_delete activity log: ${e?.message}`);
+    }
 
     return { success: true, message: `Paket ${id} berhasil dihapus` };
   }
